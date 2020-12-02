@@ -161,9 +161,11 @@ static char *strsep(char **sp, char *sep)
 static CLIModelConfig parse_model_config(const char *const optarg,
                                          const char *const app)
 {
-    char *optarg_copy = strndup(optarg, 1024);
+    const size_t optarg_sz = strnlen(optarg, 1024);
+    char *optarg_copy = malloc(optarg_sz + 1);
     if (!optarg_copy)
         usage(app, "error while parsing model option: %s", optarg);
+    strncpy(optarg_copy, optarg, optarg_sz);
 
     CLIModelConfig cli_cfg = {
         .cfg = { .flags = VMAF_MODEL_FLAGS_DEFAULT, },
@@ -205,9 +207,11 @@ static CLIModelConfig parse_model_config(const char *const optarg,
 static CLIFeatureConfig parse_feature_config(const char *const optarg,
                                              const char *const app)
 {
-    char *optarg_copy = strndup(optarg, 1024);
+    const size_t optarg_sz = strnlen(optarg, 1024);
+    char *optarg_copy = malloc(optarg_sz + 1);
     if (!optarg_copy)
         usage(app, "error while parsing feature option: %s", optarg);
+    strncpy(optarg_copy, optarg, optarg_sz);
 
     CLIFeatureConfig feature_cfg = {
         .name = strsep(&optarg_copy, "="),
@@ -240,8 +244,8 @@ static void aom_ctc_proposed(CLISettings *settings, const char *const app)
     settings->model_config[settings->model_cnt++] = cfg;
 
     settings->feature_cfg[settings->feature_cnt++] =
-        parse_feature_config("psnr=reduced_hbd_peak=true:enable_apsnr=true",
-                             app);
+        parse_feature_config("psnr=reduced_hbd_peak=true:"
+                             "enable_apsnr=true", app);
 
     settings->feature_cfg[settings->feature_cnt++] =
         parse_feature_config("ciede", app);
@@ -260,7 +264,7 @@ static void parse_aom_ctc(CLISettings *settings, const char *const optarg,
                           const char *const app)
 {
     if (!strcmp(optarg, "proposed"))
-        return aom_ctc_proposed(settings, app);
+        aom_ctc_proposed(settings, app);
     else
         usage(app, "bad aom_ctc version \"%s\", optarg");
 }
