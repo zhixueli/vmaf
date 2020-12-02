@@ -23,6 +23,7 @@ enum {
     ARG_FEATURE,
     ARG_SUBSAMPLE,
     ARG_CPUMASK,
+    ARG_AOM_CTC,
 };
 
 static const struct option long_opts[] = {
@@ -42,6 +43,7 @@ static const struct option long_opts[] = {
     { "feature",          1, NULL, ARG_FEATURE },
     { "subsample",        1, NULL, ARG_SUBSAMPLE },
     { "cpumask",          1, NULL, ARG_CPUMASK },
+    { "aom_ctc",          1, NULL, ARG_AOM_CTC },
     { "no_prediction",    0, NULL, 'n' },
     { "version",          0, NULL, 'v' },
     { "quiet",            0, NULL, 'q' },
@@ -159,7 +161,10 @@ static char *strsep(char **sp, char *sep)
 static CLIModelConfig parse_model_config(const char *const optarg,
                                          const char *const app)
 {
-    char *optarg_copy = (char *)optarg;
+    char *optarg_copy = strndup(optarg, 1024);
+    if (!optarg_copy)
+        usage(app, "error while parsing model option: %s", optarg);
+
     CLIModelConfig cli_cfg = {
         .cfg = { .flags = VMAF_MODEL_FLAGS_DEFAULT, },
         .path = NULL,
@@ -187,6 +192,8 @@ static CLIModelConfig parse_model_config(const char *const optarg,
         token = strtok(0, delim);
     }
 
+    free(optarg_copy);
+
     if (!(!cli_cfg.version != !cli_cfg.path)) {
         usage(app, "For every model, either a version or "
                    "a path needs to be set.\n");
@@ -198,7 +205,10 @@ static CLIModelConfig parse_model_config(const char *const optarg,
 static CLIFeatureConfig parse_feature_config(const char *const optarg,
                                              const char *const app)
 {
-    char *optarg_copy = (char *)optarg;
+    char *optarg_copy = strndup(optarg, 1024);
+    if (!optarg_copy)
+        usage(app, "error while parsing feature option: %s", optarg);
+
     CLIFeatureConfig feature_cfg = {
         .name = strsep(&optarg_copy, "="),
         .opts_dict = NULL,
@@ -217,7 +227,42 @@ static CLIFeatureConfig parse_feature_config(const char *const optarg,
             usage(app, "Problem parsing feature \"%s\"\n", optarg);
     }
 
+    free(optarg_copy);
+
     return feature_cfg;
+}
+
+static void aom_ctc_proposed(CLISettings *settings, const char *const app)
+{
+    CLIModelConfig cfg = {
+        .version = "vmaf_v0.6.1",
+    };
+    settings->model_config[settings->model_cnt++] = cfg;
+
+    settings->feature_cfg[settings->feature_cnt++] =
+        parse_feature_config("psnr=reduced_hbd_peak=true:enable_apsnr=true",
+                             app);
+
+    settings->feature_cfg[settings->feature_cnt++] =
+        parse_feature_config("ciede", app);
+
+    settings->feature_cfg[settings->feature_cnt++] =
+        parse_feature_config("float_ssim", app);
+
+    settings->feature_cfg[settings->feature_cnt++] =
+        parse_feature_config("float_ms_ssim", app);
+
+    settings->feature_cfg[settings->feature_cnt++] =
+        parse_feature_config("psnr_hvs", app);
+}
+
+static void parse_aom_ctc(CLISettings *settings, const char *const optarg,
+                          const char *const app)
+{
+    if (!strcmp(optarg, "proposed"))
+        return aom_ctc_proposed(settings, app);
+    else
+        usage(app, "bad aom_ctc version \"%s\", optarg");
 }
 
 void cli_parse(const int argc, char *const *const argv,
@@ -289,6 +334,9 @@ void cli_parse(const int argc, char *const *const argv,
             break;
         case ARG_CPUMASK:
             settings->cpumask = parse_unsigned(optarg, 'c', argv[0]);
+            break;
+        case ARG_AOM_CTC:
+            parse_aom_ctc(settings, optarg, argv[0]);
             break;
         case 'n':
             settings->no_prediction = true;
